@@ -1,0 +1,26 @@
+name: ding_dong
+description: A chime app that sounds the time every N minutes with dongs for hours and dings for 10-minute subdivisions.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  audioplayers: ^6.0.0
+  shared_preferences: ^2.2.0
+  file_picker: ^6.0.0
+  path_provider: ^2.1.0
+  wakelock_plus: ^1.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/sounds/
