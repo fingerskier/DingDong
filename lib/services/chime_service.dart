@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import '../models/chime_settings.dart';
@@ -50,29 +51,57 @@ class ChimeService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Regenerate tone files (call after frequency/duration changes).
+  /// Prepare sound files, with fallback for missing custom sounds.
   Future<void> _prepareSounds() async {
-    if (settings.customDongPath == null) {
-      _dongFilePath = await ToneGenerator.writeToneFile(
-        name: 'dong',
-        frequency: settings.dongFrequency,
-        durationMs: settings.dongDurationMs,
-        volume: settings.volume,
-      );
-    } else {
-      _dongFilePath = settings.customDongPath;
-    }
+    _dongFilePath = await _resolveSound(
+      customPath: settings.customDongPath,
+      name: 'dong',
+      frequency: settings.dongFrequency,
+      durationMs: settings.dongDurationMs,
+    );
 
-    if (settings.customDingPath == null) {
-      _dingFilePath = await ToneGenerator.writeToneFile(
-        name: 'ding',
-        frequency: settings.dingFrequency,
-        durationMs: settings.dingDurationMs,
-        volume: settings.volume,
-      );
-    } else {
-      _dingFilePath = settings.customDingPath;
+    _dingFilePath = await _resolveSound(
+      customPath: settings.customDingPath,
+      name: 'ding',
+      frequency: settings.dingFrequency,
+      durationMs: settings.dingDurationMs,
+    );
+  }
+
+  Future<String> _resolveSound({
+    required String? customPath,
+    required String name,
+    required double frequency,
+    required int durationMs,
+  }) async {
+    if (customPath != null && await File(customPath).exists()) {
+      return customPath;
     }
+    if (customPath != null) {
+      debugPrint('ChimeService: Custom $name file not found at "$customPath", falling back to generated tone.');
+    }
+    return ToneGenerator.writeToneFile(
+      name: name,
+      frequency: frequency,
+      durationMs: durationMs,
+      volume: settings.volume,
+    );
+  }
+
+  /// Generate a preview tone with the given draft parameters (not yet saved).
+  Future<void> previewTone({
+    required double frequency,
+    required int durationMs,
+    required double volume,
+    String? customPath,
+  }) async {
+    final path = await _resolveSound(
+      customPath: customPath,
+      name: 'preview',
+      frequency: frequency,
+      durationMs: durationMs,
+    );
+    await _playSound(path, durationMs);
   }
 
   /// Calculate the next chime time aligned to the interval.
@@ -138,19 +167,32 @@ class ChimeService extends ChangeNotifier {
   }
 
   Future<void> _playSound(String filePath, int durationMs) async {
+    final completer = Completer<void>();
+    late StreamSubscription<void> subscription;
+    subscription = _audioPlayer.onPlayerComplete.listen((_) {
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    });
+
     await _audioPlayer.setVolume(settings.volume);
     await _audioPlayer.play(DeviceFileSource(filePath));
-    // Wait for the sound to finish
-    await Future.delayed(Duration(milliseconds: durationMs + 50));
+
+    try {
+      await completer.future
+          .timeout(Duration(milliseconds: durationMs + 500), onTimeout: () {});
+    } finally {
+      await subscription.cancel();
+    }
   }
 
-  /// Preview the dong sound.
+  /// Preview the dong sound using current saved settings.
   Future<void> previewDong() async {
     await _prepareSounds();
     await _playSound(_dongFilePath!, settings.dongDurationMs);
   }
 
-  /// Preview the ding sound.
+  /// Preview the ding sound using current saved settings.
   Future<void> previewDing() async {
     await _prepareSounds();
     await _playSound(_dingFilePath!, settings.dingDurationMs);

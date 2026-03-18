@@ -73,8 +73,9 @@ class ChimeSettings {
     final prefs = await SharedPreferences.getInstance();
     final dongPath = prefs.getString('customDongPath') ?? '';
     final dingPath = prefs.getString('customDingPath') ?? '';
+    final interval = (prefs.getInt('intervalMinutes') ?? 10).clamp(1, 60);
     return ChimeSettings(
-      intervalMinutes: prefs.getInt('intervalMinutes') ?? 10,
+      intervalMinutes: interval,
       customDongPath: dongPath.isEmpty ? null : dongPath,
       customDingPath: dingPath.isEmpty ? null : dingPath,
       dongFrequency: prefs.getDouble('dongFrequency') ?? 262.0,

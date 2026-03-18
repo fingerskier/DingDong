@@ -34,6 +34,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _restoreState() async {
     if (_chime.settings.isActive) {
       await _chime.start();
+      if (_chime.settings.keepScreenOn) {
+        await WakelockPlus.enable();
+      }
     }
   }
 
@@ -219,9 +222,15 @@ class _HomeScreenState extends State<HomeScreen> {
         settings: _chime.settings,
         onSave: (newSettings) async {
           await _chime.updateSettings(newSettings);
+          if (_chime.isRunning) {
+            if (newSettings.keepScreenOn) {
+              await WakelockPlus.enable();
+            } else {
+              await WakelockPlus.disable();
+            }
+          }
         },
-        onPreviewDong: () => _chime.previewDong(),
-        onPreviewDing: () => _chime.previewDing(),
+        chimeService: _chime,
       ),
     );
   }
@@ -287,14 +296,12 @@ class _ChimeIndicator extends StatelessWidget {
 class _SettingsSheet extends StatefulWidget {
   final ChimeSettings settings;
   final Future<void> Function(ChimeSettings) onSave;
-  final VoidCallback onPreviewDong;
-  final VoidCallback onPreviewDing;
+  final ChimeService chimeService;
 
   const _SettingsSheet({
     required this.settings,
     required this.onSave,
-    required this.onPreviewDong,
-    required this.onPreviewDing,
+    required this.chimeService,
   });
 
   @override
@@ -414,7 +421,12 @@ class _SettingsSheetState extends State<_SettingsSheet> {
               onDurationChanged: (v) => setState(() => _dongDuration = v),
               onPickFile: () => _pickSoundFile(isDong: true),
               onClearFile: () => setState(() => _customDongPath = null),
-              onPreview: widget.onPreviewDong,
+              onPreview: () => widget.chimeService.previewTone(
+                frequency: _dongFreq,
+                durationMs: _dongDuration,
+                volume: _volume,
+                customPath: _customDongPath,
+              ),
               freqRange: const RangeValues(100, 500),
             ),
             const SizedBox(height: 24),
@@ -429,7 +441,12 @@ class _SettingsSheetState extends State<_SettingsSheet> {
               onDurationChanged: (v) => setState(() => _dingDuration = v),
               onPickFile: () => _pickSoundFile(isDong: false),
               onClearFile: () => setState(() => _customDingPath = null),
-              onPreview: widget.onPreviewDing,
+              onPreview: () => widget.chimeService.previewTone(
+                frequency: _dingFreq,
+                durationMs: _dingDuration,
+                volume: _volume,
+                customPath: _customDingPath,
+              ),
               freqRange: const RangeValues(300, 1000),
             ),
             const SizedBox(height: 24),
